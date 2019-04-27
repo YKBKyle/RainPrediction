@@ -119,17 +119,42 @@ colnames(YesNo_LocMat) <- RainTomorrow_Loc[,1]
 barplot(YesNo_LocMat)
 ```
 
-As the results shown above, samples are not balanced. Fitting an unbalanced dataset makes the fitted models more likely to have bias.
+As the results shown above, the whole dataset is not balanced. Samples of each location are also not balanced. Since fitting an unbalanced dataset makes the fitted models more likely to have bias, technique bagging is used and the following data split is adopted:
+
+No-Dataset: 30% test, 70% train
+Note: when training, it may be possible that not all these 70% are used
+
+Yes-Dataset: test - same amount as in No-Dataset, train - randomly pick as many as in No-Dataset from those left
+
+### 1.2.3. Data Split
+```{r}
+set.seed(1)
+TrainRatio <- 0.6
+ValRatio <- 0.2
+TestRatio <- 1-TrainRatio-ValRatio
+
+YesData <- Data[Data$RainTomorrow=="Yes",]
+NoData <- Data[Data$RainTomorrow=="No",]
+
+YesData_TrainRow <- sample(1:nrow(YesData),ceiling(nrow(YesData)*TrainRatio))
+YesData_ValTestRow <- setdiff(1:nrow(YesData),YesData_TrainRow)
+YesData_ValRow <- sample(YesData_ValTestRow,ceiling(nrow(YesData)*ValRatio))
+YesData_TestRow <- setdiff(YesData_ValTestRow,YesData_ValRow)
+
+NoData_TestRow <- sample(1:nrow(NoData),length(YesData_TestRow))
+NoData_ValTrainRow <- setdiff(1:nrow(NoData),NoData_TestRow)
+NoData_ValRow <- sample(NoData_ValTrainRow,length(YesData_ValRow))
+NoData_TrainRow <- setdiff(NoData_ValTrainRow,NoData_ValRow)
+
+ValData <- rbind(YesData[YesData_ValRow,],NoData[NoData_ValRow,])
+TestData <- rbind(YesData[YesData_TestRow,],NoData[NoData_TestRow,])
+Shuffle <- function(DataFrame){}
+sample(1:nrow(ValData))
+TestData <- Data[-TrainRows,]
+```
 
 ## 2. Fitting and Predicting
 In this section, different models are applied to predict whether it will rain tomorrow. The whole dataset will be divided into training dataset (70%) and testing dataset (30%).
-```{r}
-set.seed(1)
-TrainRatio <- 0.7
-TrainRows <- sample(1:nrow(Data),nrow(Data)*TrainRatio)
-TrainData <- Data[TrainRows,]
-TestData <- Data[-TrainRows,]
-```
 
 ### 2.1. Autoregression
 ```{r}
@@ -141,8 +166,9 @@ TestData <- Data[-TrainRows,]
 
 ```
 ### 2.5. Decision Tree and Random Forest
+Consider categorizing date into 4 seasons
 #### 2.5.1. Decision Tree: 
-```{r}
+
 library(tree)
 set.seed(1)
 train = sample(1:nrow(Data), nrow(Data)*0.7)
@@ -186,5 +212,5 @@ plot(tree.pred)
 
 #lm.1 <- lm(DiagnosisHeartDisease ~ Age+ Sex+ ChestPainType+ RestBloodPressure+ SerumCholesterol+ FastBloodSugar+ RestElectrocardiographic+ MaxHeartRate+ Exercise_Angina+ ST_Depression+ Slope+ NumVesselColored+ ThalLevel, data=HeartDisease)
 #summary(lm.1)
-```
+
 
