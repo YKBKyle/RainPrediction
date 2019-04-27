@@ -1,0 +1,183 @@
+---
+title: "AUS Weather Analysis"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, results = "markup")
+```
+
+# Summary
+This project foucses on predicting whether it will rain tomorrow based on the weather indicators today. Logistic regression, KNN, decision tree and random forest are utilized to perform the prediction. Besides, Linear regression is applied to predict rainfall. Autoregression is applied to test whether rainfall is a random walk.
+
+The dataset is from kaggle: https://www.kaggle.com/jsphyg/weather-dataset-rattle-package
+
+The meaning of each variable in this dataset:
+
+1. Date: The date of observation
+
+2. Location: The common name of the location of the weather station
+
+3. MinTemp: The minimum temperature in degrees celsius
+
+4. MaxTemp: The maximum temperature in degrees celsius
+
+5. Rainfall: The amount of rainfall recorded for the day in mm
+
+6. Evaporation: The so-called Class A pan evaporation (mm) in the 24 hours to 9am
+
+7. Sunshine: The number of hours of bright sunshine in the day.
+
+8. WindGustDir: The direction of the strongest wind gust in the 24 hours to midnight
+
+9. WindGustSpeed: The speed (km/h) of the strongest wind gust in the 24 hours to midnight
+
+10. WindDir9am: Direction of the wind at 9am
+
+11. WindDir3pm: Direction of the wind at 3pm
+
+12. WindSpeed9am: Wind speed (km/hr) averaged over 10 minutes prior to 9am
+
+13. WindSpeed3pm: Wind speed (km/hr) averaged over 10 minutes prior to 3pm
+
+14. Humidity9am: Humidity (percent) at 9am
+
+15. Humidity3pm: Humidity (percent) at 3pm
+
+16. Pressure9am: Atmospheric pressure (hpa) reduced to mean sea level at 9am
+
+17. Pressure3pm: Atmospheric pressure (hpa) reduced to mean sea level at 3pm
+
+18. Cloud9am: Fraction of sky obscured by cloud at 9am. This is measured in "oktas", which are a unit of eigths. It records how many eigths of the sky are obscured by cloud. A 0 measure indicates completely clear sky whilst an 8 indicates that it is completely overcast.
+
+19. Cloud3pm: Fraction of sky obscured by cloud (in "oktas": eighths) at 3pm. See Cload9am for a description of the values
+
+20. Temp9am: Temperature (degrees C) at 9am
+
+21. Temp3pm: Temperature (degrees C) at 3pm
+
+22. RainTodayBoolean: 1 if precipitation (mm) in the 24 hours to 9am exceeds 1mm, otherwise 0
+
+23. RISK_MM: The amount of next day rain in mm. Used to create response variable RainTomorrow. A kind of measure of the "risk".
+
+24. RainTomorrow is the target variable. Did it rain tomorrow?
+
+# Task and Question:
+Task1: Predict whether it will rain tomorrow
+
+Task2: Analyze the similarity of different locations in terms of weather
+
+Question: Is rainfall a random walk?
+
+# 1. Load Data and Preprocessing
+## 1.1. Load Data 
+```{r}
+Data <- read.csv("weatherAUS.csv",header = T,stringsAsFactors = F)
+```
+
+## 1.2. Data Preprocessing
+### 1.2.1. Check and Remove Missing Data
+```{r}
+Logical <- is.na(Data)
+NaNum <- colSums(Logical)
+TotalRows <- nrow(Data)
+print(c("Total Rows:",TotalRows))
+print("Number of NA in each column:")
+NaNum
+print("Propotion of NA in each column:")
+NaNum/TotalRows
+```
+As the result shown above, 42.78903% of column Evaporation is missing, this column should be removed. 47.69292% of column Sunshine is missing, this column should be removed. 37.7353316% of column Cloud9am is missing, this column should be removed. 40.1524688% of column Cloud3pm is missing, this column should be removed.
+
+After removed column Evaporation, Sunshine, Cloud9am, Cloud3pm, rows with missing data will also be removed.
+```{r}
+Logical <- names(Data) %in% c("Evaporation","Sunshine","Cloud9am","Cloud3pm")
+Data <- Data[,!Logical]
+Data <- na.omit(Data)
+```
+
+### 1.2.2. Check Whether Samples are Balanced
+Have a view on the whole dataset:
+```{r}
+table(Data$RainTomorrow)
+prop.table(table(Data$RainTomorrow))
+barplot(table(Data$RainTomorrow))
+```
+
+Have a view on each location:
+```{r}
+AllSample_Loc <- table(Data$Location)
+RainTomorrow_Loc <- aggregate(RainTomorrow ~ Location, data = Data, function(x){sum(x=="Yes")})
+RainTomorrow_Loc <- t(RainTomorrow_Loc)
+
+```
+
+As the results shown above, samples are not balanced. Fitting an unbalanced dataset makes the fitted models more likely to have bias.
+
+## 2. Fitting and Predicting
+In this section, different models are applied to predict whether it will rain tomorrow. The whole dataset will be divided into training dataset (70%) and testing dataset (30%).
+```{r}
+set.seed(1)
+TrainRatio <- 0.7
+TrainRows <- sample(1:nrow(Data),nrow(Data)*TrainRatio)
+TrainData <- Data[TrainRows,]
+TestData <- Data[-TrainRows,]
+```
+
+### 2.1. Autoregression
+```{r}
+```
+### 2.2. Linear Regression
+### 2.3. Logistic Regression
+### 2.4. KNN
+```{r}
+
+```
+### 2.5. Decision Tree and Random Forest
+#### 2.5.1. Decision Tree: 
+```{r}
+library(tree)
+set.seed(1)
+train = sample(1:nrow(Data), nrow(Data)*0.7)
+HD.train <- Data[train,]
+HD.test = Data[-train,]
+
+tree.HD.train = tree(DiagnosisHeartDisease ~ ., data = HD.train)
+
+tree.pred = predict(tree.HD.train,HD.test,type="class")
+
+mean(tree.pred==HD.test$DiagnosisHeartDisease)
+
+
+#tree.HD.train = tree(DiagnosisHeartDisease ~ Age+df+ty, data = HD.train)
+
+#tree.pred = predict(tree.HD.train,HD.test,type="class")
+
+#mean(tree.pred==HD.test$DiagnosisHeartDisease)
+
+library('randomForest')
+set.seed(1)
+forest.pred <-randomForest(DiagnosisHeartDisease ~ ., data = HD.train, norm.votes=TRUE)
+predict.pred <- predict(forest.pred,HD.test,type = "class",norm.votes=TRUE)
+#forest.pred.num <- as.numeric(as.character(forest.pred$predicted) == "TRUE")
+
+mean(predict.pred==HD.test$DiagnosisHeartDisease)
+plot(forest.pred)
+plot(predict.pred)
+plot(tree.HD.train)
+text(tree.HD.train, pretty = 0)
+plot(tree.pred)
+#This plot shows the Error and the Number of Trees. 
+#We can easily notice that how the Error is dropping as we keep on adding more and more trees and average them.
+
+#set.seed(1)
+#forest.pred=randomForest(DiagnosisHeartDisease ~ . , data = HD.train,ntree=5000, type = "class",norm.votes=TRUE)
+#predict.pred <- predict(forest.pred,HD.test,type = "class",norm.votes=TRUE)
+#mean(predict.pred==HD.test$DiagnosisHeartDisease)
+#round(importance(forest.pred), 2)
+#HD.mds <- cmdscale(1 - forest.pred$proximity, eig=TRUE)
+
+#lm.1 <- lm(DiagnosisHeartDisease ~ Age+ Sex+ ChestPainType+ RestBloodPressure+ SerumCholesterol+ FastBloodSugar+ RestElectrocardiographic+ MaxHeartRate+ Exercise_Angina+ ST_Depression+ Slope+ NumVesselColored+ ThalLevel, data=HeartDisease)
+#summary(lm.1)
+```
+
