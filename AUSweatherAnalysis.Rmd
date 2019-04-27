@@ -140,7 +140,7 @@ NoData_TestRow <- sample(1:nrow(YesData),length(YesData_TestRow))
 TestData <- rbind(YesData[YesData_TestRow,],NoData[NoData_TestRow,])
 ```
 
-### 2.3.2. Generate Training Sets
+### 2.3.2. Prepare for Training Sets
 ```{r}
 set.seed(1)
 Yes_TrainCandidate <- YesData[-YesData_TestRow,]
@@ -155,8 +155,20 @@ YesTrainRows <- lapply(TrainRowNum,function(x){sample(1:nrow(Yes_TrainCandidate)
 NoTrainRows <- lapply(TrainRowNum,function(x){sample(1:nrow(No_TrainCandidate),x)})
 ```
 
+### 2.3.3. TrainData Generating Function
+```{r}
+GetTrainData <- function(i){
+    set.seed(i)
+    YesTrainData <- Yes_TrainCandidate[YesTrainRows[[i]],]
+    NoTrainData <- No_TrainCandidate[NoTrainRows[[i]],]
+    TrainData <- rbind(YesTrainData,NoTrainData)
+    NewRows <- sample(1:nrow(TrainData),nrow(TrainData))
+    TrainData <- TrainData[NewRows,]
+}
+```
+
 # 3. Fitting and Predicting
-In this section, different models are applied to predict whether it will rain tomorrow. The whole dataset will be divided into training dataset (70%) and testing dataset (30%).
+In this section, different models are applied to predict whether it will rain tomorrow.
 
 ## 3.1. Autoregression
 ```{r}
