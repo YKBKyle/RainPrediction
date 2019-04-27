@@ -108,8 +108,15 @@ Have a view on each location:
 ```{r}
 AllSample_Loc <- table(Data$Location)
 RainTomorrow_Loc <- aggregate(RainTomorrow ~ Location, data = Data, function(x){sum(x=="Yes")})
-RainTomorrow_Loc <- t(RainTomorrow_Loc)
 
+Loc <- match(names(AllSample_Loc),RainTomorrow_Loc[,1])
+RainTomorrow_Loc[Loc,"AllSample"] <- AllSample_Loc
+RainTomorrow_Loc[,"NoRainTomorrow"] <- t(diff(t(RainTomorrow_Loc[,-1])))
+
+YesNo_Loc <- RainTomorrow_Loc[,-match("AllSample",names(RainTomorrow_Loc))]
+YesNo_LocMat <- as.matrix(t(YesNo_Loc[,-1]))
+colnames(YesNo_LocMat) <- RainTomorrow_Loc[,1]
+barplot(YesNo_LocMat)
 ```
 
 As the results shown above, samples are not balanced. Fitting an unbalanced dataset makes the fitted models more likely to have bias.
