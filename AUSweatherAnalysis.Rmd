@@ -10,6 +10,11 @@ knitr::opts_chunk$set(echo = TRUE, results = "markup")
 # Summary
 This project foucses on predicting whether it will rain tomorrow based on the weather indicators today. Logistic regression, KNN, decision tree and random forest are utilized to perform the prediction. Besides, Linear regression is applied to predict rainfall. Autoregression is applied to test whether rainfall is a random walk.
 
+# Introduction
+[Weather forecasts are made by collecting quantitative data about the current state of the atmosphere at a given place and using meteorology to project how the atmosphere will change. The main variables of prediction of the weather are changes in barometric pressure, current weather conditions, and sky condition or cloud cover, weather forecasting now relies on computer-based models that take many atmospheric factors into account. Researchers will select the best possible forecast model based on model performance and knowledge of model biases. The use of ensembles and model consensus help narrow the error and pick the most likely outcome.](https://en.wikipedia.org/wiki/Weather_forecasting)
+
+Our group download the data set and we plan to try several models to analyze the following research questions.
+
 The dataset is from kaggle: https://www.kaggle.com/jsphyg/weather-dataset-rattle-package
 
 The meaning of each variable in this dataset:
@@ -90,8 +95,7 @@ As the result shown above, 42.78903% of column Evaporation is missing, this colu
 
 After removed column Evaporation, Sunshine, Cloud9am, Cloud3pm, rows with missing data will also be removed.
 ```{r}
-Logical <- names(Data) %in% c("Evaporation","Sunshine","Cloud9am","Cloud3pm")
-Data <- Data[,!Logical]
+Data <- subset(Data, select = -c(Evaporation,Sunshine,Cloud9am,Cloud3pm))
 Data <- na.omit(Data)
 ```
 
@@ -125,8 +129,55 @@ Note: when training, it may be possible that not all these 70% are used
 
 Yes-Dataset: test - same amount as in No-Dataset, train - randomly pick as many as in No-Dataset from those left
 
-## 2.3. Data Split
-### 2.3.1 Generate Testing Dataset
+## 2.3. Delete Outlier
+Delete outliers based on boxplot
+```{r}
+Logical <- sapply(Data,is.character)
+NotChrLoc <- which(!Logical)
+
+OutliersContainer <- list()
+OutLiersNumber <- as.data.frame(matrix(nrow = length(NotChrLoc), ncol = 2))
+for ( i in 1:length(NotChrLoc) ){
+    outliers <- boxplot(Data[,NotChrLoc[i]], plot=FALSE)$out
+    VarName <- names(Data)[NotChrLoc[i]]
+    OutliersContainer[[i]] <- outliers
+    OutLiersNumber[i,1] <- VarName
+    OutLiersNumber[i,2] <- length(outliers)
+}
+OutLiersNumber
+```
+
+As the result shown above, in terms of variable Rainfall and RISK_MM, samples labeled as outliers by boxplot are too much, but outliers should be too much. So outliers removing will not base on these two variables.
+
+```{r}
+Logical1 <- OutLiersNumber[,1] %in% c("Rainfall","RISK_MM")
+Logical2 <- OutLiersNumber[,2]!=0
+VarHasOutlier <- OutLiersNumber[(!Logical1) & Logical2,1]
+for ( i in 1:length(VarHasOutlier) ){
+    outliers <- boxplot(Data[,VarHasOutlier[i]], plot=FALSE)$out
+    if (length(outliers) != 0){
+        par(mfrow = c(1, 2))
+        boxplot(Data[,VarHasOutlier[i]])
+        title(VarHasOutlier[i])
+        Data<-Data[-which(Data[,VarHasOutlier[i]] %in% outliers),]
+        boxplot(Data[,VarHasOutlier[i]])
+        title(VarHasOutlier[i])
+    }
+}
+```
+
+## 2.4. Analysis Covariance
+```{r}
+library(corrplot)
+Data_corvariance <- Data
+Data_cor=Data[,c(3,4,5,7,10,11,12,13,14,15,16,17)]
+res=round(cor(Data_cor),2)
+corrplot.mixed(res,lower.col = "black", number.cex = .5)
+
+```
+
+## 2.5. Data Split
+### 2.5.1 Generate Testing Dataset
 ```{r}
 set.seed(1)
 TrainRatio <- 0.7
@@ -143,7 +194,7 @@ NoData_TestRow <- sample(1:nrow(YesData),length(YesData_TestRow))
 TestData <- rbind(YesData[YesData_TestRow,],NoData[NoData_TestRow,])
 ```
 
-### 2.3.2. Prepare for Training Sets
+### 2.5.2. Prepare for Training Sets
 ```{r}
 set.seed(1)
 Yes_TrainCandidate <- YesData[-YesData_TestRow,]
@@ -158,7 +209,7 @@ YesTrainRows <- lapply(TrainRowNum,function(x){sample(1:nrow(Yes_TrainCandidate)
 NoTrainRows <- lapply(TrainRowNum,function(x){sample(1:nrow(No_TrainCandidate),x)})
 ```
 
-### 2.3.3. TrainData Generating Function
+### 2.5.3. TrainData Generating Function
 ```{r}
 GetTrainData <- function(i){
     set.seed(i)
@@ -263,6 +314,7 @@ for ( i in 1:length(K) ){
     AllKNNPredAccuracy[[i]] <- GetPredAccuracy(AllKNNPred[[i]],TestRainTomorrow)
     KNNPredTable_Ave[[i]] <- GetAvePfmTable(AllKNNPred[[i]],TestRainTomorrow)
 }
+KNNPredTable_Ave
 ```
 
 KNN Bagging without Selecting Indicators:
@@ -284,8 +336,7 @@ library(tree)
 AllDTree <- list()
 for (i in 1:RandomTimes){
     TrainData <- GetTrainData(i)
-    NewCols <- match(c("Date","Location","RISK_MM"),names(TrainData))
-    TrainData <- TrainData[,-NewCols]
+    TrainData <- subset(TrainData, select = -c(Date,Location,RISK_MM))
     
     DTree <- tree(RainTomorrow ~ ., data = TrainData)
     AllDTree[[i]] <- DTree
@@ -372,16 +423,22 @@ for (i in 1:RandomTimes){
 
 Prediction:
 ```{r cache=TRUE, results='hide'}
-AllDTPred_IndLoc <- matrix(nrow = nrow(TestData), ncol = length(AllDTree_IndLoc))
-AllDTPredAccuracy_IndLoc <- matrix(nrow = length(AllDTree_IndLoc), ncol = 1)
-for (i in 1:length(AllDTree_IndLoc)){
-    AllDTPred_IndLoc[,i] <- (predict(AllDTree_IndLoc[[i]],ChangeLocation2Vector(TestData),type="class") == "Yes")
-    AllDTPredAccuracy[i] <- mean(AllDTPred[,i]==TestRainTomorrow)
-    print(paste0(as.character(i),"/",as.character(RandomTimes),"-Tree Predict"))
-}
+TestData_IndLoc <- ChangeLocation2Vector(TestData)
+AllDTPred_IndLoc <- GetTreePredict(AllDTree_IndLoc,TestData_IndLoc)
 ```
 
-### 3.5.4. Random Forest - Prediction
+Accuracy and Performance:
+```{r}
+AllDTPredAccuracy_IndLoc <- GetPredAccuracy(AllDTPred_IndLoc,TestRainTomorrow)
+hist(AllDTPredAccuracy_IndLoc)
+PredTableIndLoc_Ave <- GetAvePfmTable(AllDTPred_IndLoc,TestRainTomorrow)
+prop.table(PredTableIndLoc_Ave)
+```
+
+### 3.5.5. Train Decision Tree - Exclude Location, RISK_MM; Include Date
+
+
+### 3.5.6. Random Forest - Prediction
 ```{r}
 TreeBagPred <- 
 mean(tree.pred==HD.test$DiagnosisHeartDisease)
