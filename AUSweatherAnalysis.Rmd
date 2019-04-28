@@ -170,8 +170,8 @@ for ( i in 1:length(VarHasOutlier) ){
 ```{r}
 library(corrplot)
 Data_corvariance <- Data
-Data_cor=Data[,c(3,4,5,7,10,11,12,13,14,15,16,17)]
-res=round(cor(Data_cor),2)
+Data_cor <- Data[,c(3:5,7,10:17)]
+res <- round(cor(Data_cor),2)
 corrplot.mixed(res,lower.col = "black", number.cex = .5)
 
 ```
