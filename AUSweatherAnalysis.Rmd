@@ -204,9 +204,10 @@ for (i in 1:RandomTimes){
 ```{r cache=TRUE, results='hide'}
 AllDTPred <- matrix(nrow = nrow(TestData), ncol = length(AllDTree))
 AllDTPredAccuracy <- matrix(nrow = length(AllDTree), ncol = 1)
+TestRainTomorrow <- (TestData$RainTomorrow=="Yes")
 for (i in 1:length(AllDTree)){
     AllDTPred[,i] <- (predict(AllDTree[[i]],TestData,type="class") == "Yes")
-    AllDTPredAccuracy[i] <- mean(AllDTPred[,i]==(TestData$RainTomorrow=="Yes"))
+    AllDTPredAccuracy[i] <- mean(AllDTPred[,i]==TestRainTomorrow)
     print(paste0(as.character(i),"/",as.character(RandomTimes),"-Tree Predict"))
 }
 ```
@@ -214,24 +215,47 @@ for (i in 1:length(AllDTree)){
 Trees' prediction results are as below:
 ```{r}
 hist(AllDTPredAccuracy)
-
+TreePred <- AllDTPred[,1]
+PredTable_Ave <- table(TreePred,TestRainTomorrow)
+for (i in 2:length(AllDTree)){
+    TreePred <- AllDTPred[,i]
+    PredTable_Ave <- PredTable_Ave + table(TreePred,TestRainTomorrow)
+}
+PredTable_Ave <- PredTable_Ave/length(AllDTree)
+PredTable_Ave
+prop.table(PredTable_Ave)
 ```
 
-From the histogram, the prediction accuracy of all these trees are between 71% and 75%. The majority is below 73%. (Note that the testing dataset has balanced samples.)
+From the histogram, the prediction accuracy of all these trees are between 71% and 75%. The majority is below 73%. (Note that the testing dataset has balanced samples.) On average, if indeed it will rain tomorrow, the probability that trees make a wrong prediction is `r PredTable_Ave[1,2]/sum(PredTable_Ave[,2])` and if indeed it won't rain tomorrow, the probability that trees make a wrong prediction is `r PredTable_Ave[2,1]/sum(PredTable_Ave[,1])`.
 
 ### 3.5.3. Bagging Without Selecting Indicators
 ```{r}
 BaggingPred <- (rowMeans(AllDTPred) > 0.5)
-BaggingPredAccuracy <- mean(BaggingPred == (TestData$RainTomorrow=="Yes"))
+BaggingPredAccuracy <- mean(BaggingPred == TestRainTomorrow)
+BaggingPredAccuracy
 ```
 
 Bagging's effect is as below:
 ```{r}
 hist(AllDTPredAccuracy)
 abline(v = BaggingPredAccuracy, col = "red" )
+
+BaggingPredTable <- table(BaggingPred,TestRainTomorrow)
+BaggingPredTable
+prop.table(BaggingPredTable)
 ```
 
-From the graph above, the red line, representing the prediction accuracy after bagging, locates on the right side of the histogram, meaning bagging without selecting indicators can improve prediction accuracy.
+From the graph above, the red line, representing the prediction accuracy after bagging, locates on the right side of the histogram. With bagging, if indeed it will rain tomorrow, the probability that bagging-tree makes a wrong prediction is `r BaggingPredTable[1,2]/sum(BaggingPredTable[,2])` and if indeed it won't rain tomorrow, the probability that bagging-tree makes a wrong prediction is `r BaggingPredTable[2,1]/sum(BaggingPredTable[,1])`.
+
+Comparing these results with that of trees without bagging, bagging without selecting indicators seem to achieve an average prediction performance of all the trees.
+
+### 3.5.4 Train Decision Tree - Exclude Date, RISK_MM; Include Location
+It makes sense that a city's weather can depend on the loaction of the city, so location is included to train trees, with a hope that prediction accuracy can be improved.
+
+Since variable Location has 44 levels, so much for train decision trees that R cannot process, this variable is manually transfer to a 0-1 vector.
+```{r}
+
+```
 
 ### 3.5.4. Random Forest - Prediction
 ```{r}
