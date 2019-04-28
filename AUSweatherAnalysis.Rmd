@@ -203,19 +203,37 @@ for (i in 1:RandomTimes){
 ### 3.5.2. Decision Tree - Prediction
 ```{r cache=TRUE, results='hide'}
 AllDTPred <- matrix(nrow = nrow(TestData), ncol = length(AllDTree))
-AllDTPred <- as.data.frame(AllDTPred)
 AllDTPredAccuracy <- matrix(nrow = length(AllDTree), ncol = 1)
-for (i in 1:nrow(DTPredAccuracy)){
-    AllDTPred[,i] <- predict(AllDTree[[i]],TestData,type="class")
-    AllDTPredAccuracy[i] <- mean(AllDTPred[,i]==TestData$RainTomorrow)
+for (i in 1:length(AllDTree)){
+    AllDTPred[,i] <- (predict(AllDTree[[i]],TestData,type="class") == "Yes")
+    AllDTPredAccuracy[i] <- mean(AllDTPred[,i]==(TestData$RainTomorrow=="Yes"))
     print(paste0(as.character(i),"/",as.character(RandomTimes),"-Tree Predict"))
 }
+```
 
-
+Trees' prediction results are as below:
+```{r}
+hist(AllDTPredAccuracy)
 
 ```
 
-### 3.5.3. Random Forest - Prediction
+From the histogram, the prediction accuracy of all these trees are between 71% and 75%. The majority is below 73%. (Note that the testing dataset has balanced samples.)
+
+### 3.5.3. Bagging Without Selecting Indicators
+```{r}
+BaggingPred <- (rowMeans(AllDTPred) > 0.5)
+BaggingPredAccuracy <- mean(BaggingPred == (TestData$RainTomorrow=="Yes"))
+```
+
+Bagging's effect is as below:
+```{r}
+hist(AllDTPredAccuracy)
+abline(v = BaggingPredAccuracy, col = "red" )
+```
+
+From the graph above, the red line, representing the prediction accuracy after bagging, locates on the right side of the histogram, meaning bagging without selecting indicators can improve prediction accuracy.
+
+### 3.5.4. Random Forest - Prediction
 ```{r}
 TreeBagPred <- 
 mean(tree.pred==HD.test$DiagnosisHeartDisease)
