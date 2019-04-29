@@ -234,7 +234,7 @@ After we look through the data, we find out that the Rainfall as the output cann
 ## 3.3. Logistic Regression
 ```{r}
 set.seed(1)
-Library(leaps)
+library(leaps)
 head(Data)
 RainTommorrow = regsubsets(YesRain~.-RainTommorrow, data=Data)
 Data.train=Data[TrainData,]
@@ -315,6 +315,7 @@ for ( i in 1:length(K) ){
     KNNPredTable_Ave[[i]] <- GetAvePfmTable(AllKNNPred[[i]],TestRainTomorrow)
 }
 KNNPredTable_Ave
+AllKNNPredAccuracy
 ```
 
 KNN Bagging without Selecting Indicators:
@@ -351,7 +352,7 @@ GetTreePredict <- function(AllDTree,TestData){
     for (i in 1:length(AllDTree)){
         Pred <- predict(AllDTree[[i]],TestData,type="class")
         TreePredict[,i] <- (Pred == "Yes")
-        print(paste0(as.character(i),"/",as.character(RandomTimes),"-Predict"))
+        print(paste0(as.character(i),"/",as.character(length(AllDTree)),"-Predict"))
     }
     TreePredict
 }
@@ -435,36 +436,99 @@ PredTableIndLoc_Ave <- GetAvePfmTable(AllDTPred_IndLoc,TestRainTomorrow)
 prop.table(PredTableIndLoc_Ave)
 ```
 
+Bagging:
+```{r}
+BaggingPred_IndLoc <- (rowMeans(AllDTPred_IndLoc) > 0.5)
+BaggingPredIndLocAccuracy <- mean(BaggingPred_IndLoc == TestRainTomorrow)
+BaggingPredIndLocAccuracy
+
+hist(AllDTPredAccuracy_IndLoc)
+abline(v = BaggingPredIndLocAccuracy, col = "red" )
+
+BaggingPredIndLocTable <- table(BaggingPred_IndLoc,TestRainTomorrow)
+BaggingPredIndLocTable
+prop.table(BaggingPredIndLocTable)
+```
+
 ### 3.5.5. Train Decision Tree - Exclude Location, RISK_MM; Include Date
 
 
 ### 3.5.6. Random Forest - Prediction
+Train on the same TrainData as Tree
 ```{r}
-TreeBagPred <- 
-mean(tree.pred==HD.test$DiagnosisHeartDisease)
 library('randomForest')
 set.seed(1)
-forest.pred <-randomForest(DiagnosisHeartDisease ~ ., data = HD.train, norm.votes=TRUE)
-predict.pred <- predict(forest.pred,HD.test,type = "class",norm.votes=TRUE)
-#forest.pred.num <- as.numeric(as.character(forest.pred$predicted) == "TRUE")
-
-mean(predict.pred==HD.test$DiagnosisHeartDisease)
-plot(forest.pred)
-plot(predict.pred)
-plot(tree.HD.train)
-text(tree.HD.train, pretty = 0)
-plot(tree.pred)
-#This plot shows the Error and the Number of Trees. 
-#We can easily notice that how the Error is dropping as we keep on adding more and more trees and average them.
-
-#set.seed(1)
-#forest.pred=randomForest(DiagnosisHeartDisease ~ . , data = HD.train,ntree=5000, type = "class",norm.votes=TRUE)
-#predict.pred <- predict(forest.pred,HD.test,type = "class",norm.votes=TRUE)
-#mean(predict.pred==HD.test$DiagnosisHeartDisease)
-#round(importance(forest.pred), 2)
-#HD.mds <- cmdscale(1 - forest.pred$proximity, eig=TRUE)
-
-#lm.1 <- lm(DiagnosisHeartDisease ~ Age+ Sex+ ChestPainType+ RestBloodPressure+ SerumCholesterol+ FastBloodSugar+ RestElectrocardiographic+ MaxHeartRate+ Exercise_Angina+ ST_Depression+ Slope+ NumVesselColored+ ThalLevel, data=HeartDisease)
-#summary(lm.1)
+AllForest <- list()
+for (i in 1:10){
+    TrainData <- GetTrainData(i)
+    TrainData <- subset(TrainData, select = -c(Date,Location,RISK_MM))
+    
+    Forest <-randomForest(RainTomorrow ~ ., data = TrainData, norm.votes=TRUE)
+    AllForest[[i]] <- Forest
+    print(paste0(as.character(i),"/",as.character(RandomTimes),"-Forest Train"))
+}
+plot(Forest)
 ```
 
+Predict:
+```{r}
+GetForestPredict <- function(AllForest,TestData){
+    ForestPredict <- matrix(nrow = nrow(TestData), ncol = length(AllForest))
+    for (i in 1:length(AllForest)){
+        Pred <- predict(AllForest[[i]],TestData,type="class",norm.votes = TRUE)
+        ForestPredict[,i] <- (Pred == "Yes")
+        print(paste0(as.character(i),"/",as.character(length(AllForest)),"-Predict"))
+    }
+    ForestPredict
+}
+
+AllForestPred <- GetForestPredict(AllForest,TestData)
+```
+
+Accuracy and Performance:
+```{r}
+AllForestPredAccuracy <- GetPredAccuracy(AllForestPred,TestRainTomorrow)
+hist(AllForestPredAccuracy)
+AllForestPredTable_Ave <- GetAvePfmTable(AllForestPred,TestRainTomorrow)
+prop.table(AllForestPredTable_Ave)
+```
+
+Train with all data available for training:
+```{r}
+TrainData <- rbind(Yes_TrainCandidate,No_TrainCandidate)
+NewRows <- sample(1:nrow(TrainData),nrow(TrainData))
+TrainData <- TrainData[NewRows,]
+TrainData <- subset(TrainData, select = -c(Date,Location,RISK_MM))
+    
+Forest <-randomForest(RainTomorrow ~ ., data = TrainData, norm.votes=TRUE)
+ForestPred <- predict(Forest,TestData,type="class",norm.votes = TRUE)
+ForestPred <- (ForestPred == "Yes")
+
+ForestPredAccuracy <- mean(ForestPred==TestRainTomorrow)
+ForestPredAccuracy
+table(ForestPred,TestRainTomorrow)
+prop.table(table(ForestPred,TestRainTomorrow))
+```
+
+The accuracy is lower than that of the forests in the former part.
+
+Train on the largest balanced TrainData:
+```{r}
+set.seed(1)
+No_TrainRows <- sample(1:nrow(No_TrainCandidate),nrow(Yes_TrainCandidate))
+TrainData <- rbind(No_TrainCandidate[No_TrainRows,],Yes_TrainCandidate)
+NewRows <- sample(1:nrow(TrainData),nrow(TrainData))
+TrainData <- TrainData[NewRows,]
+TrainData <- subset(TrainData, select = -c(Date,Location,RISK_MM))
+
+Forest <-randomForest(RainTomorrow ~ ., data = TrainData, norm.votes=TRUE)
+ForestPred <- predict(Forest,TestData,type="class",norm.votes = TRUE)
+ForestPred <- (ForestPred == "Yes")
+
+ForestPredAccuracy <- mean(ForestPred==TestRainTomorrow)
+ForestPredAccuracy
+table(ForestPred,TestRainTomorrow)
+prop.table(table(ForestPred,TestRainTomorrow))
+```
+
+The prediction accuracy in this part is almost the same as in the first part in this section.
