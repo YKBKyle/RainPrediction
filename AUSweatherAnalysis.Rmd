@@ -226,25 +226,102 @@ In this section, different models are applied to predict whether it will rain to
 
 ## 3.1. Autoregression
 ```{r}
+AllCity <- unique(Data$Location)
+DataCity1 <- Data[Data$Location==AllCity[1],]
+library(fBasics)
+tssrainfall= ts(DataCity1$Rainfall,frequency = 365,start = c(2008,12))
+plot(tssrainfall,xlab="year",ylab="rainfall")
+basicStats(DataCity1$Rainfall)
+acf(DataCity1$Rainfall,lag.max = 24)
+pacf(DataCity1$Rainfall,lag.max = 24)
+m1<-arima(DataCity1$Rainfall,order=c(1,0,0))
+Box.test(m1$residuals,lag = 12,type = "Ljung")
+pv=1-pchisq(32.357,10)
+pv
+
+m2<-arima(DataCity1$Rainfall,order = c(2,0,6),fixed = c(NA,NA,NA,NA,0,0,0,NA,NA))
+Box.test(m2$residuals,lag = 12,type = "Ljung")
+pv=1-pchisq(38.19,10)
+pv
+predict(m1,5)
+
+for (i in 1: 44){
+    print(mi<-arima(Data[Data$Location==AllCity[i],]$Rainfall,order=c(1,0,0)))
+    print(Box.test(mi$residuals,lag = 12,type = "Ljung"))
+}
 ```
 
 ## 3.2. Linear Regression
 After we look through the data, we find out that the Rainfall as the output cannot be negative. Therefore, the linear regression is not the appropriate model to answer the research questions because the output cannot be negative while linear regression could lead the result to be negative.
 
 ## 3.3. Logistic Regression
-```{r}
+Train:
+```{r cache=TRUE, results='hide'}
 set.seed(1)
-library(leaps)
-head(Data)
-RainTommorrow = regsubsets(YesRain~.-RainTommorrow, data=Data)
-Data.train=Data[TrainData,]
-Data.test=Data[TestData,]
-TrainData <- GetTrainData(1)
-log.reg.fit=glm(YesRain01~.,family=binominal,data=Data.train)
-summary(log.reg.fit)
-YesRain01.probs=predict(log.reg.fit,Data.test,type="response")
-YesRain01.pred = ifelse(YesRain01,probs>=0.5,1,0)
-mean(YesRain01.pred==YesRain01.test)
+RandomTimes_Glm <- RandomTimes
+AllGlm <- list()
+for ( i in 1:RandomTimes_Glm ){
+    TrainData <- GetTrainData(i)
+    TrainData <- subset(TrainData, select = -c(Date,RISK_MM))
+    
+    ThisGlm <- glm(RainTomorrow ~ .,TrainData,family = binomial)
+    AllGlm[[i]] <- ThisGlm
+    print(i)
+}
+```
+
+Predict:
+```{r results='hide'}
+AllGlmPred <- matrix(nrow = nrow(TestData), ncol = length(AllGlm))
+for ( i in 1:length(AllGlm) ){
+    GlmPred <- predict(AllGlm[[i]],TestData,type="response")
+    AllGlmPred[,i] <- (GlmPred>0.5)
+    print(i)
+}
+```
+
+Accuracy and Performance:
+```{r}
+GetPredAccuracy <- function(AllModelPred,RealLabel){
+    PredAccuracy <- matrix(nrow = ncol(AllModelPred), ncol = 1)
+    for (i in 1:ncol(AllModelPred)){
+        PredAccuracy[i] <- mean(AllModelPred[,i]==RealLabel)
+    }
+    PredAccuracy
+}
+
+GetAvePfmTable <- function(AllModelPred,RealLabel){
+    Pred <- AllModelPred[,1]
+    PredTable_Ave <- table(Pred,RealLabel)
+    for (i in 2:ncol(AllModelPred)){
+        Pred <- AllModelPred[,i]
+        PredTable_Ave <- PredTable_Ave + table(Pred,RealLabel)
+    }
+    PredTable_Ave <- PredTable_Ave/ncol(AllModelPred)
+    PredTable_Ave
+}
+
+TestRainTomorrow <- TestData$RainTomorrow
+TestRainTomorrow <- (TestData$RainTomorrow=="Yes")
+
+AllGlmPredAccuracy <- GetPredAccuracy(AllGlmPred,TestRainTomorrow)
+hist(AllGlmPredAccuracy)
+GlmPredTable_Ave <- GetAvePfmTable(AllGlmPred,TestRainTomorrow)
+prop.table(GlmPredTable_Ave)
+```
+
+Glm Bagging without Selecting Indicators:
+```{r}
+GlmBaggingPred <- (rowMeans(AllGlmPred) > 0.5)
+GlmBaggingPredAccuracy <- mean(GlmBaggingPred == TestRainTomorrow)
+GlmBaggingPredAccuracy
+
+hist(AllGlmPredAccuracy)
+abline(v = GlmBaggingPredAccuracy, col = "red" )
+
+GlmBaggingPredTable <- table(GlmBaggingPred,TestRainTomorrow)
+GlmBaggingPredTable
+prop.table(GlmBaggingPredTable)
 ```
 
 ## 3.4. KNN
@@ -260,9 +337,6 @@ RemoveFactorVar <- function(Data){
 
 set.seed(1)
 library(class)
-
-TestRainTomorrow <- TestData$RainTomorrow
-TestRainTomorrow <- (TestData$RainTomorrow=="Yes")
 TestData_KNN <- RemoveFactorVar(TestData)
 TestData_KNN <- subset(TestData_KNN, select = -RISK_MM)
 
